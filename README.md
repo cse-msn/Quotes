@@ -17,22 +17,12 @@ To use the Uber Rides Android SDK, add the compile dependency with the latest ve
 
 ### Gradle
 
-Add the Uber Rides Android SDK to your `build.gradle`:
+[![Maven Central](https://img.shields.io/maven-central/v/com.uber.sdk/rides-android.svg)](https://mvnrepository.com/artifact/com.uber.sdk/rides-android)
+
 ```gradle
 dependencies {
-    compile 'com.uber.sdk:rides-android:0.6.1'
+    compile 'com.uber.sdk:rides-android:x.y.z'
 }
-```
-
-### Maven
-
-In the `pom.xml` file:
-```xml
-<dependency>
-    <groupId>com.uber.sdk</groupId>
-    <artifactId>rides-android</artifactId>
-    <version>0.6.1</version>
-</dependency>
 ```
 
 ## SDK Configuration
@@ -194,8 +184,8 @@ LoginCallback loginCallback = new LoginCallback() {
                 // Successful login!  The AccessToken will have already been saved.
             }
         }
-AccessTokenManager accessTokenManager = new AccessTokenManager(context);
-LoginManager loginManager = new LoginManager(accessTokenManager, loginCallback);
+AccessTokenStorage accessTokenStorage = new AccessTokenManager(context);
+LoginManager loginManager = new LoginManager(accessTokenStorage, loginCallback);
 loginManager.login(activity);
 ```
 
@@ -219,20 +209,20 @@ Upon a failure to login, an `AuthenticationError` will be provided in the `Login
 If your app allows users to authorize via your own customized logic, you will need to create an `AccessToken` manually and save it in shared preferences using the `AccessTokenManager`.
 
 ```java
-AccessTokenManager accessTokenManager = new AccessTokenManager(context);
+AccessTokenStorage accessTokenStorage = new AccessTokenManager(context);
 Date expirationTime = 2592000;
 List<Scope> scopes = Arrays.asList(Scope.RIDE_WIDGETS);
 String token = "obtainedAccessToken";
 String refreshToken = "obtainedRefreshToken";
 String tokenType = "obtainedTokenType";
 AccessToken accessToken = new AccessToken(expirationTime, scopes, token, refreshToken, tokenType);
-accessTokenManager.setAccessToken(accessToken);
+accessTokenStorage.setAccessToken(accessToken);
 ```
 The `AccessTokenManager` can also be used to get an access token or delete it.
 
 ```java
 accessTokenManger.getAccessToken();
-accessTokenManager.removeAccessToken();
+accessTokenStorage.removeAccessToken();
 ```
 
 To keep track of multiple users, create an AccessTokenManager for each AccessToken.
@@ -319,7 +309,7 @@ service.getUserProfile().enqueue(new Callback<UserProfile>() {
 
 ## Sample Apps
 
-Sample apps can be found in the `samples` folder. Alternatively, you can also download a sample from the [releases page](https://github.com/uber/rides-android-sdk/releases/tag/v0.6.1).
+Sample apps can be found in the `samples` folder. Alternatively, you can also download a sample from the [releases page](https://github.com/uber/rides-android-sdk/releases).
 
 The Sample apps require configuration parameters to interact with the Uber API, these include the client id, redirect uri, and server token. They are provided on the [Uber developer dashboard](https://developer.uber.com/dashboard).
 

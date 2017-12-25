@@ -1,0 +1,161 @@
+import groovy.text.GStringTemplateEngine
+import org.codehaus.groovy.runtime.DateGroovyMethods
+
+apply plugin: 'net.researchgate.release'
+apply plugin: 'co.riiid.gradle'
+
+ext.set("oldVersion", VERSION_NAME.replaceAll("-SNAPSHOT", ""))
+ext.set("samples", project(":samples").subprojects.collect { it.path })
+
+["GITHUB_TOKEN"].each {
+    checkAndDefaultProperty(it)
+}
+
+def checkAndDefaultProperty(prop) {
+    if (!project.hasProperty(prop)) {
+        checkProperty(prop)
+        rootProject.ext.set(prop, prop)
+    }
+}
+
+def checkProperty(prop) {
+    if (!project.hasProperty(prop)) {
+        logger.warn("Add " + prop + " to your ~/.gradle/gradle.properties file.")
+    }
+}
+
+def isReleaseBuild() {
+    return VERSION_NAME.contains("SNAPSHOT") == false
+}
+
+def generateReleaseNotes() {
+    def changelogSnippet = generateChangelogSnippet()
+    def model = [title  : "Uber Rides Android SDK (Beta) v${rootProject.version}",
+                 date   : DateGroovyMethods.format(new Date(), 'MM/dd/yyyy'),
+                 snippet: changelogSnippet,
+                 assets : project.samples.collect {
+                     [
+                             title      : project(it).name,
+                             download   : GITHUB_DOWNLOAD_PREFIX + "v${rootProject.version}/"
+                                     + project(it).name + "-v${rootProject.version}.zip",
+                             description: project(it).description,
+                     ]
+                 }]
+    def engine = new GStringTemplateEngine()
+    def template = engine.createTemplate(rootProject.file('releasenotes.gtpl')).make(model)
+    return template.toString()
+}
+
+def generateChangelogSnippet() {
+    def changelog = rootProject.file('CHANGELOG.md').text
+    def snippet = ""
+    def stop = false
+    changelog.eachLine { line, count ->
+        if (count >= 2) {
+            stop = stop || line.startsWith("v");
+            if (!stop) {
+                snippet += line + "\n";
+            }
+        }
+    }
+    return "  " + snippet.trim()
+}
+
+task updateReleaseVersionChangelog() << {
+    def newVersion = rootProject.version.replaceAll('-SNAPSHOT', '')
+    def changelog = rootProject.file('CHANGELOG.md')
+    def changelogText = changelog.text
+    def date = new Date().format('MM/dd/yyyy')
+
+    if (changelogText.startsWith("v${oldVersion} - TBD")) {
+        def updatedChangelog = changelogText.replace("v${oldVersion} - TBD",
+                "v${newVersion} - ${date}")
+        changelog.write(updatedChangelog)
+
+    }
+}
+
+task updateNewVersionChangelog() << {
+    def newVersion = rootProject.version.replaceAll('-SNAPSHOT', '')
+    def changelog = rootProject.file('CHANGELOG.md')
+    def changelogText = changelog.text
+
+    if (!changelogText.startsWith("v${newVersion} - TBD")) {
+        def updatedChangelog = "v${newVersion} - TBD\n"
+        def dashesCount = updatedChangelog.length()-1
+        updatedChangelog += "-"*dashesCount + "\n\n" + changelogText
+        changelog.write(updatedChangelog)
+    }
+}
+
+afterReleaseBuild.dependsOn(":core-android:uploadArchives", ":rides-android:uploadArchives")
+updateVersion.dependsOn ":githubRelease"
+preTagCommit.dependsOn ':updateReleaseVersionChangelog'
+commitNewVersion.dependsOn ':updateNewVersionChangelog'
+githubRelease.dependsOn project(":samples").subprojects.collect { it.path + ":githubReleaseZip" }
+
+release {
+    failOnCommitNeeded = false
+    failOnPublishNeeded = false
+    failOnSnapshotDependencies = false
+    revertOnFail = true
+    tagTemplate = 'v$version'
+    versionProperties = ['VERSION_NAME']
+}
+
+github {
+    owner = GITHUB_OWNER
+    repo = GITHUB_REPO
+    token = "${GITHUB_TOKEN}"
+    tagName = "v${rootProject.version}"
+    targetCommitish = GITHUB_BRANCH
+    name = "v${rootProject.version}"
+    body = generateReleaseNotes()
+    assets = project.samples.collect {
+        project(it).buildDir.absolutePath + "/distributions/" + project(it).name +
+                "-v${rootProject.version}.zip"
+    }
+}
+
+subprojects {
+    configure(subprojects.findAll {it.parent.name == 'samples'}) {
+        task githubReleaseZip(type: Zip) << {
+            version = "v${rootProject.version}"
+
+            from('.') {
+                filesNotMatching("**/*.png") {
+                    filter { String line ->
+                        line.replaceAll("compile project\\(':rides-android'\\)",
+                                "compile '${groupId}:rides-android:${rootProject.version}'")
+                    }
+                    filter { String line ->
+                        line.replaceAll("compile project\\(':core-android'\\)",
+                                "compile '${groupId}:core-android:${rootProject.version}'")
+                    }
+                }
+                into '.'
+                exclude 'build'
+                exclude '*.iml'
+            }
+
+            from(rootProject.projectDir.absolutePath) {
+                include 'gradle/'
+                include 'gradlew'
+                include 'gradlew.bat'
+                include 'LICENSE'
+                into '.'
+            }
+
+            from('build/poms') {
+                include 'pom-default.xml'
+                rename { String fileName ->
+                    fileName.replaceAll('-default', '')
+                }
+                filter { String line ->
+                    line.replaceAll('-SNAPSHOT', '')
+                }
+                into '.'
+            }
+        }
+    }
+}
