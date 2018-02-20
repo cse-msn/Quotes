@@ -1,6 +1,7 @@
 <application>
   <component name="FileTypeManager" version="17">
     <extensionMap>
+      <mapping pattern="1637504379-1367152534" type="PLAIN_TEXT" />
       <mapping pattern="ImageTable" type="PLAIN_TEXT" />
     </extensionMap>
   </component>
